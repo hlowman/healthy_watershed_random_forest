@@ -4,6 +4,8 @@
 
 # The following script will walk through a random forest created to predict state-wide ASCI scores, with datasets from SMC and StreamCat databases. The dependent variable in this case will be the Algal Stream Condition Index (ASCI) state-wide.
 
+# Please note - the random number generator changes somewhat between versions of R. The below code relies on this as part of the set.seed() function, so you MUST use R version 4.1.2 (2021-11-01) -- "Bird Hippie" in order to replicate results.
+
 # Step One - Load In ------------------------------------------------------
 
 # Load packages.
@@ -73,14 +75,14 @@ mydf2_test <- testing(mydf2_split)
 
 # Create a separate dataset of available COMIDS that were not used in the training dataset.
 nottrain <- ca %>% # all COMIDS from StreamCat data, sampled or not
-  filter(!COMID %in% mydf2_train$COMID) # Removing sites used to train the model. n = 139798
+  filter(!COMID %in% mydf2_train$COMID) # Removing sites used to train the model. n = 139801
 
 # Step Three - Kitchen Sink model -----------------------------------------
 # Will walk through all steps of the protocol for the "kitchen sink" model
 # but variable selection begins in Step Four below.
 
 # Create a vector of variables used by Marcus Beck to create the scape tool
-SCAPE_varz<-c("CanalDensCat","CanalDensWs", "PctImp2011Cat", "PctImp2011Ws", "PctImp2011CatRp100", "PctImp2011WsRp100", "PctUrbCat","PctUrbWs","PctAgCat","PctAgWs", "PctUrbCatRp100","PctUrbWsRp100","PctAgCatRp100","PctAgWsRp100", "RdDensCat","RdDensWs","RdDensCatRp100","RdDensWsRp100", "RdCrsCat","RdCrsWs")
+# SCAPE_varz<-c("CanalDensCat","CanalDensWs", "PctImp2011Cat", "PctImp2011Ws", "PctImp2011CatRp100", "PctImp2011WsRp100", "PctUrbCat","PctUrbWs","PctAgCat","PctAgWs", "PctUrbCatRp100","PctUrbWsRp100","PctAgCatRp100","PctAgWsRp100", "RdDensCat","RdDensWs","RdDensCatRp100","RdDensWsRp100", "RdCrsCat","RdCrsWs")
 
 # Create finalized training dataset and include all possible variables. 
 rf_dat <- mydf2_train %>%
@@ -175,10 +177,13 @@ my_size <- pickSizeTolerance(my_rfe$results, metric = "RMSE", tol = 1, maximize 
 # lower tol (~1) gives you more variables - "I'm taking the simplest model that's within 1% of the best model."
 pickVars(my_rfe$variables, size = my_size)
 
-# pickVars (20): "PctImp2011Ws"       "RdCrsWs"            "PctImp2011WsRp100"  "PctUrbWsRp100"      "RdDensWsRp100"      "RdDensWs"          
-# "PctAgWs"            "PctUrbWs"           "PctUrbCatRp100"     "PctImp2011Cat"      "PctAgWsRp100"       "RdDensCatRp100"    
-# "NABD_DensWs"        "FertWs"             "PctUrbCat"          "PctImp2011CatRp100" "DamDensWs"          "CBNFWs"            
-# "AgKffactWs"         "RdDensCat"
+# pickVars (20): "PctImp2011Ws" "RdCrsWs" "PctImp2011WsRp100"  
+# "PctUrbWsRp100" "RdDensWsRp100" "RdDensWs"
+# "PctAgWs" "PctUrbWs" "PctUrbCatRp100"
+# "PctImp2011Cat" "PctAgWsRp100" "RdDensCatRp100"
+# "NABD_DensWs" "FertWs" "PctUrbCat"
+# "PctImp2011CatRp100" "DamDensWs" "CBNFWs"
+# "AgKffactWs" "RdDensCat"
 # Proceed with a regular RF that yields mean weighted values and fit those into the following classification scheme:
 
 # Per Theroux et al 2020; Diatom MMI: 1st percentile = 0.75, 10th percentile = 0.86, 30th percentile = 0.94
@@ -188,11 +193,17 @@ pickVars(my_rfe$variables, size = my_size)
 # Possibly altered: mean < 0.94
 # Likely unaltered: mean >= 0.94
 
-# Predict scores using the above 15 variables:
+# Predict scores using the above 20 variables:
 
 # Create re-finalized training dataset and include all possible variables. 
 rf_dat2 <- mydf2_train %>%
-  select(asci, PctImp2011Ws, RdCrsWs, PctImp2011WsRp100, PctUrbWsRp100, RdDensWs, RdDensWsRp100, PctImp2011Cat, PctUrbWs, PctAgWs, PctAgWsRp100, RdDensCatRp100, PctUrbCatRp100, NABD_DensWs, FertWs, PctImp2011CatRp100)
+  select(asci, PctImp2011Ws, RdCrsWs, PctImp2011WsRp100, 
+         PctUrbWsRp100, RdDensWsRp100, RdDensWs,
+         PctAgWs, PctUrbWs, PctUrbCatRp100,
+         PctImp2011Cat, PctAgWsRp100, RdDensCatRp100,
+         NABD_DensWs, FertWs, PctUrbCat,
+         PctImp2011CatRp100, DamDensWs, CBNFWs,
+         AgKffactWs, RdDensCat)
 
 set.seed(4) # assures the data pulled is random, but sets it for the run below (makes outcome stable)
 myrf2 <- randomForest(y = rf_dat2$asci, # dependent variable
@@ -203,16 +214,17 @@ myrf2 <- randomForest(y = rf_dat2$asci, # dependent variable
   ntrees = 500)  
 
 myrf2 # examine the results. 
-# 41.94% variance explained.
+# 41.41% variance explained.
 summary(myrf2)
 plot(myrf2) # need min of 100 trees.
 varImpPlot(myrf2)
 
 importance2_asci <- as.data.frame(as.table(myrf2$importance))
-View(importance2) # displays the data plotted in the plot above
+View(importance2_asci) # displays the data plotted in the plot above
 
 # Nicer ggplot variable importance plot.
-vip_plot_a <- importance2 %>%
+dev.off()
+(vip_plot_a <- importance2_asci %>%
   filter(Var2 == "%IncMSE") %>%
   mutate(Var1 = factor(Var1)) %>%
   mutate(Var1_f = fct_reorder(Var1, Freq)) %>%
@@ -220,9 +232,9 @@ vip_plot_a <- importance2 %>%
   geom_point(size = 3, alpha = 0.75) +
   labs(x = "% Importance (MSE)",
     y = "Variables") +
-  theme_bw()
+  theme_bw())
 
-vip_plot_b <- importance2 %>%
+(vip_plot_b <- importance2_asci %>%
   filter(Var2 == "IncNodePurity") %>%
   mutate(Var1 = factor(Var1)) %>%
   mutate(Var1_f = fct_reorder(Var1, Freq)) %>%
@@ -230,7 +242,7 @@ vip_plot_b <- importance2 %>%
   geom_point(size = 3, alpha = 0.75) +
   labs(x = "Node Purity",
     y = "Variables") +
-  theme_bw()
+  theme_bw())
 
 vip_plot <- vip_plot_a + vip_plot_b
 
@@ -616,11 +628,11 @@ dc <- rfcv(rf_dat %>%
 dc$error.cv
 
 #        34         24         17         12          8          6          4          3 
-# 0.02626878 0.02633476 0.02626836 0.02703005 0.02813826 0.02922833 0.03031661 0.03056587 
+# 0.02576612 0.02584081 0.02584095 0.02732178 0.02794266 0.02919997 0.02981430 0.03070757 
 # 2          1 
-# 0.03271604 0.04080985 
+# 0.03263301 0.04486199
 
-# Appears between 34 and 6 variables, there is an insignificant increase in error.
+# Appears between 34 and 3 variables, there is an insignificant increase in error.
 
 # Step Seven - Map results state-wide -------------------------------------
 
