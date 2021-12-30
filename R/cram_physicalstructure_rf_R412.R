@@ -4,6 +4,8 @@
 
 # The following script will walk through a random forest created to predict state-wide CRAM physical structure index scores, with datasets from SMC and StreamCat databases. The dependent variable in this case will be the California Rapid Assessment Method (CRAM) physical index state-wide.
 
+# Please note - the random number generator changes somewhat between versions of R. The below code relies on this as part of the set.seed() function, so you MUST use R version 4.1.2 (2021-11-01) -- "Bird Hippie" in order to replicate results.
+
 # Step One - Load In ------------------------------------------------------
 
 # Load packages.
@@ -19,6 +21,7 @@ library(patchwork)
 library(Metrics)
 library(gt)
 library(here)
+library(webshot)
 
 # Load datasets.
 # CRAM data available from SCCWRP database.
@@ -108,7 +111,7 @@ summary(myrf)
 # mtry allows you to parameterize the number of splits
 
 plot(myrf)
-# model performance appears to improve most at ~100 trees
+# model performance appears to improve most at <100 trees
 
 varImpPlot(myrf)
 # displays which variables are most important
@@ -175,10 +178,13 @@ my_size <- pickSizeTolerance(my_rfe$results, metric = "RMSE", tol = 1, maximize 
 pickVars(my_rfe$variables, size = my_size)
 
 # pickVars (20):
-# "PctImp2011CatRp100" "PctUrbCatRp100"     "RdDensCatRp100"     "PctAgWsRp100"       "PctImp2011Cat"      "PctImp2011WsRp100" 
-# "RdDensCat"          "PctUrbWsRp100"      "PctUrbCat"          "PctUrbWs"           "RdDensWs"           "RdDensWsRp100"     
-# "PctAgWs"            "RdCrsWs"            "RdCrsCat"           "AgKffactWs"         "PctImp2011Ws"       "CBNFWs"            
-# "PctAgCat"           "AgKffactCat"
+# "PctImp2011CatRp100" "PctUrbCatRp100" "RdDensCatRp100"
+# "PctAgWsRp100" "PctImp2011Cat" "PctImp2011WsRp100" 
+# "RdDensCat" "PctUrbWsRp100" "PctUrbCat"
+# "PctUrbWs" "RdDensWs" "RdDensWsRp100"     
+# "PctAgWs" "RdCrsWs" "RdCrsCat"
+# "AgKffactWs" "PctImp2011Ws" "CBNFWs"            
+# "PctAgCat" "AgKffactCat"
 
 # Proceed with a regular RF that yields mean weighted values and fit those into the following classification scheme:
 
@@ -199,6 +205,7 @@ pickVars(my_rfe$variables, size = my_size)
 # Create re-finalized training dataset and include all possible variables. 
 rf_dat2 <- mydf2_train %>%
   select(physicalstructure, AgKffactCat,	AgKffactWs,	CBNFWs,	PctAgCat,	PctAgWs,	PctAgWsRp100,	PctImp2011Cat,	PctImp2011CatRp100,	PctImp2011Ws,	PctImp2011WsRp100,	PctUrbCat,	PctUrbCatRp100,	PctUrbWs,	PctUrbWsRp100,	RdCrsCat,	RdCrsWs,	RdDensCat,	RdDensCatRp100,	RdDensWs,	RdDensWsRp100)
+# not in the same order as above, but double-checked to be sure they're all there - HL
 
 set.seed(4) # assures the data pulled is random, but sets it for the run below (makes outcome stable)
 myrf2 <- randomForest(y = rf_dat2$physicalstructure, # dependent variable
@@ -218,7 +225,7 @@ importance2 <- as.data.frame(as.table(myrf2$importance))
 View(importance2) # displays the data plotted in the plot above
 
 # Nicer ggplot variable importance plot.
-vip_plot_a <- importance2 %>%
+(vip_plot_a <- importance2 %>%
   filter(Var2 == "%IncMSE") %>%
   mutate(Var1 = factor(Var1)) %>%
   mutate(Var1_f = fct_reorder(Var1, Freq)) %>%
@@ -226,9 +233,9 @@ vip_plot_a <- importance2 %>%
   geom_point(size = 3, alpha = 0.75) +
   labs(x = "% Importance (MSE)",
     y = "Variables") +
-  theme_bw()
+  theme_bw())
 
-vip_plot_b <- importance2 %>%
+(vip_plot_b <- importance2 %>%
   filter(Var2 == "IncNodePurity") %>%
   mutate(Var1 = factor(Var1)) %>%
   mutate(Var1_f = fct_reorder(Var1, Freq)) %>%
@@ -236,19 +243,19 @@ vip_plot_b <- importance2 %>%
   geom_point(size = 3, alpha = 0.75) +
   labs(x = "Node Purity",
     y = "Variables") +
-  theme_bw()
+  theme_bw())
 
 vip_plot <- vip_plot_a + vip_plot_b
 
 vip_plot + plot_annotation(tag_levels = 'A')
 
 # Export figure
-ggsave("cram_physicalstructure_vip_plot.png",
-     path = "figures",
-     width = 25,
-     height = 10,
-     units = "cm"
-   )
+# ggsave("cram_physicalstructure_vip_plot_R412.png",
+#      path = "figures",
+#      width = 25,
+#      height = 10,
+#      units = "cm"
+#    )
 
 # predict(myrf2) # returns out of bag predictions for training data
 
@@ -598,9 +605,7 @@ dc <- rfcv(rf_dat %>%
 
 dc$error.cv
 #34       24       17       12        8        6        4        3        2        1 
-#225.1524 226.3307 231.4618 238.3304 250.1926 261.6627 272.3757 266.4408 283.8253 335.2839 
-
-# Appears between 34 and 24 variables, there is an insignificant increase in error.
+#222.6114 221.9964 228.7500 231.0490 235.3404 251.9744 262.8215 264.1405 293.1656 342.4706
 
 # Step Seven - Map results state-wide -------------------------------------
 
