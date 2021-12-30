@@ -5,6 +5,8 @@
 # The following script will walk through a random forest created to predict state-wide CRAM biotic scores, with datasets from SMC and StreamCat databases. The dependent variable in this case will be the California Rapid Assessment Method (CRAM) biotic index state-wide.
 # Note: this is for the biotic structure metric of CRAM.  There is no V1 of this script.
 
+# Please note - the random number generator changes somewhat between versions of R. The below code relies on this as part of the set.seed() function, so you MUST use R version 4.1.2 (2021-11-01) -- "Bird Hippie" in order to replicate results.
+
 # Step One - Load In ------------------------------------------------------
 
 # Load packages.
@@ -20,6 +22,7 @@ library(patchwork)
 library(Metrics)
 library(gt)
 library(here)
+library(webshot)
 
 # Load datasets.
 # CRAM data available from SCCWRP database.
@@ -109,7 +112,7 @@ summary(myrf)
 # mtry allows you to parameterize the number of splits
 
 plot(myrf)
-# model performance appears to improve most at ~150 trees
+# model performance appears to improve most at <100 trees
 
 varImpPlot(myrf)
 # displays which variables are most important
@@ -178,8 +181,10 @@ my_size <- pickSizeTolerance(my_rfe$results, metric = "RMSE", tol = 1, maximize 
 pickVars(my_rfe$variables, size = my_size)
 
 # pickVars (10):
-# "PctImp2011CatRp100" "RdCrsWs"            "PctUrbCatRp100"     "PctImp2011WsRp100"  "PctUrbWs"           "RdDensWs"          
-# "RdDensCatRp100"     "PctImp2011Ws"       "RdDensCat"          "PctImp2011Cat"  
+# "PctImp2011CatRp100" "RdCrsWs" "PctUrbCatRp100"
+# "PctImp2011WsRp100" "PctUrbWs" "RdDensWs"          
+# "RdDensCatRp100" "PctImp2011Ws" "RdDensCat"
+# "PctImp2011Cat"  
 
 # Proceed with a regular RF that yields mean weighted values and fit those into the following classification scheme:
 
@@ -199,7 +204,7 @@ pickVars(my_rfe$variables, size = my_size)
 
 # Create re-finalized training dataset and include all possible variables. 
 rf_dat2 <- mydf2_train %>%
-  select(bioticstructure, PctImp2011Cat,	PctImp2011CatRp100,	PctImp2011Ws,	PctImp2011WsRp100,	PctUrbCatRp100,	PctUrbWs,	RdCrsWs,	RdDensCat,	RdDensCatRp100,	RdDensWs)
+  select(bioticstructure, PctImp2011Cat,	PctImp2011CatRp100,	PctImp2011Ws,	PctImp2011WsRp100,	PctUrbCatRp100,	PctUrbWs,	RdCrsWs,	RdDensCat,	RdDensCatRp100,	RdDensWs) # out of order but double checked to be sure they're all there - HL
 
 set.seed(4) # assures the data pulled is random, but sets it for the run below (makes outcome stable)
 myrf2 <- randomForest(y = rf_dat2$bioticstructure, # dependent variable
@@ -219,7 +224,7 @@ importance2 <- as.data.frame(as.table(myrf2$importance))
 View(importance2) # displays the data plotted in the plot above
 
 # Nicer ggplot variable importance plot.
-vip_plot_a <- importance2 %>%
+(vip_plot_a <- importance2 %>%
   filter(Var2 == "%IncMSE") %>%
   mutate(Var1 = factor(Var1)) %>%
   mutate(Var1_f = fct_reorder(Var1, Freq)) %>%
@@ -227,9 +232,9 @@ vip_plot_a <- importance2 %>%
   geom_point(size = 3, alpha = 0.75) +
   labs(x = "% Importance (MSE)",
     y = "Variables") +
-  theme_bw()
+  theme_bw())
 
-vip_plot_b <- importance2 %>%
+(vip_plot_b <- importance2 %>%
   filter(Var2 == "IncNodePurity") %>%
   mutate(Var1 = factor(Var1)) %>%
   mutate(Var1_f = fct_reorder(Var1, Freq)) %>%
@@ -237,14 +242,14 @@ vip_plot_b <- importance2 %>%
   geom_point(size = 3, alpha = 0.75) +
   labs(x = "Node Purity",
     y = "Variables") +
-  theme_bw()
+  theme_bw())
 
 vip_plot <- vip_plot_a + vip_plot_b
 
 vip_plot + plot_annotation(tag_levels = 'A')
 
 # Export figure
-# ggsave("cram_bioticstructure_vip_plot.png",
+# ggsave("cram_bioticstructure_vip_plot_R412.png",
 #      path = "figures",
 #      width = 25,
 #      height = 10,
@@ -586,11 +591,11 @@ write_csv(process_summary, "data_model_outputs/crambio_process_summary_R4.1.2.cs
 
 predtest <- predict(myrf2, mydf2_test2)
 rmse(mydf2_test2$bioticstructure,predtest)
-# 15.34
+# 15.25
 
 predtrain <- predict(myrf2, mydf2_train2)
 rmse(mydf2_train2$bioticstructure,predtrain)
-# 7.39
+# 7.13
 
 # Double checking using the original random forest dataset (rf_dat) with all 34 possible variables included to see where the error in number of predictors starts to increase dramatically (to help double check our decision to include 25 parameters).
 dc <- rfcv(rf_dat %>%
@@ -601,9 +606,7 @@ dc <- rfcv(rf_dat %>%
 
 dc$error.cv
 #34       24       17       12        8        6        4        3        2        1 
-#268.1348 272.4613 275.0880 274.4925 275.1221 280.8414 290.8960 301.0270 315.0448 350.5281   
-
-# Appears between 34 and 12 variables, there is an insignificant increase in error.
+#270.2257 269.8111 269.6846 274.3374 278.5570 282.2021 289.0239 297.8602  325.7845 386.4904  
 
 # Step Seven - Map results state-wide -------------------------------------
 
