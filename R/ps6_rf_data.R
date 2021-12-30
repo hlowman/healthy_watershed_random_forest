@@ -6,6 +6,8 @@
 
 # Again, the dataset pulled in below will not be posted to GitHub, because the file is too large to store on GitHub.
 
+# Please contact hlowman@unr.edu or jeffb@sccwrp.org for copies of these files.
+
 #### PACKAGES ####
 
 library(tidyverse) # loaded for data manipulation

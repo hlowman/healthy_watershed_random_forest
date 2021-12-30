@@ -6,6 +6,8 @@
 
 # The data used below will not be posted to GitHub, because the files are too large to store on GitHub. Instead, I'll use file paths to direct to my personal machine to retrieve them.
 
+# Please contact hlowman@unr.edu or jeffb@sccwrp.org for copies of these files.
+
 #### PACKAGES ####
 
 library(tidyverse) # loaded for data manipulation
