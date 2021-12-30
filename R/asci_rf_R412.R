@@ -21,6 +21,7 @@ library(patchwork)
 library(Metrics)
 library(gt)
 library(here)
+library(webshot)
 
 # Load datasets.
 # ASCI data available from SCCWRP database.
@@ -249,7 +250,7 @@ vip_plot <- vip_plot_a + vip_plot_b
 vip_plot + plot_annotation(tag_levels = 'A')
 
 # Export figure
-# ggsave("asci_vip_plot.png",
+# ggsave("asci_vip_plot_R412.png",
 #      path = "figures",
 #      width = 25,
 #      height = 10,
@@ -631,8 +632,6 @@ dc$error.cv
 # 0.02576612 0.02584081 0.02584095 0.02732178 0.02794266 0.02919997 0.02981430 0.03070757 
 # 2          1 
 # 0.03263301 0.04486199
-
-# Appears between 34 and 3 variables, there is an insignificant increase in error.
 
 # Step Seven - Map results state-wide -------------------------------------
 

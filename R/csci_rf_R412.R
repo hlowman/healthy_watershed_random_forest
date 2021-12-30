@@ -4,6 +4,8 @@
 
 # The following script will walk through a random forest created to predict state-wide CSCI scores, with datasets from SMC and StreamCat databases. The dependent variable in this case will be the California Stream Condition Index (CSCI) state-wide.
 
+# Please note - the random number generator changes somewhat between versions of R. The below code relies on this as part of the set.seed() function, so you MUST use R version 4.1.2 (2021-11-01) -- "Bird Hippie" in order to replicate results.
+
 # Note: this script uses published thresholds from Mazor et al 2016.
 
 # Step One - Load In ------------------------------------------------------
@@ -21,6 +23,7 @@ library(patchwork)
 library(Metrics)
 library(gt)
 library(here)
+library(webshot)
 
 # Load datasets.
 # CSCI data available from SCCWRP database.
@@ -110,7 +113,7 @@ summary(myrf)
 # mtry allows you to parameterize the number of splits
 
 plot(myrf)
-# model performance appears to improve most at ~100 trees
+# model performance appears to improve most at <100 trees
 
 varImpPlot(myrf)
 # displays which variables are most important
@@ -146,6 +149,7 @@ ca_predictions <- bind_rows(nottrain_prediction %>%
 # This creates the dataset that will be plotted (i.e. you're trying to create a state-wide plot of predicted CSCI scores).
 
 # Plot the data.
+dev.off()
 (rf_plot1 <- ggplot(ca_predictions, aes(x = RdCrsWs, y = csci_predicted)) +
   geom_point(alpha = 0.1) +
   labs(x = "Watershed Density of Road-Stream Intersections",
@@ -177,10 +181,13 @@ my_size <- pickSizeTolerance(my_rfe$results, metric = "RMSE", tol = 1, maximize 
 # lower tol (~1) gives you more variables - "I'm taking the simplest model that's within 1% of the best model."
 pickVars(my_rfe$variables, size = my_size)
 
-# pickVars (20): "RdCrsWs"            "PctImp2011CatRp100" "PctImp2011Cat"      "PctImp2011Ws"       "PctAgWsRp100"       "PctUrbWsRp100"     
-# "RdDensWs"           "CanalDensWs"        "PctUrbCatRp100"     "PctUrbWs"           "PctAgWs"            "PctImp2011WsRp100" 
-# "RdDensWsRp100"      "PctUrbCat"          "RdDensCat"          "MineDensWs"         "FertWs"             "CBNFWs"            
-# "AgKffactWs"         "RdDensCatRp100"  
+# pickVars (20): "RdCrsWs" "PctImp2011CatRp100" "PctImp2011Cat"
+# "PctImp2011Ws" "PctAgWsRp100" "PctUrbWsRp100"     
+# "RdDensWs" "CanalDensWs" "PctUrbCatRp100"
+# "PctUrbWs" "PctAgWs" "PctImp2011WsRp100" 
+# "RdDensWsRp100" "PctUrbCat" "RdDensCat"
+# "MineDensWs" "FertWs" "CBNFWs"            
+# "AgKffactWs" "RdDensCatRp100"  
 
 # Proceed with a regular RF that yields mean weighted values and fit those into the following classification scheme:
 
@@ -195,7 +202,7 @@ pickVars(my_rfe$variables, size = my_size)
 
 # Create re-finalized training dataset and include all possible variables. 
 rf_dat2 <- mydf2_train %>%
-  select(csci, AgKffactWs,	CanalDensWs,	CBNFWs,	FertWs,	MineDensWs,	PctAgWs,	PctAgWsRp100,	PctImp2011Cat,	PctImp2011CatRp100,	PctImp2011Ws,	PctImp2011WsRp100,	PctUrbCat,	PctUrbCatRp100,	PctUrbWs,	PctUrbWsRp100,	RdCrsWs,	RdDensCat,	RdDensCatRp100,	RdDensWs,	RdDensWsRp100)
+  select(csci, AgKffactWs,	CanalDensWs,	CBNFWs,	FertWs,	MineDensWs,	PctAgWs,	PctAgWsRp100,	PctImp2011Cat,	PctImp2011CatRp100,	PctImp2011Ws,	PctImp2011WsRp100,	PctUrbCat,	PctUrbCatRp100,	PctUrbWs,	PctUrbWsRp100,	RdCrsWs,	RdDensCat,	RdDensCatRp100,	RdDensWs,	RdDensWsRp100) # these are a little out of order, but I made sure they were all there - HL
 
 set.seed(4) # assures the data pulled is random, but sets it for the run below (makes outcome stable)
 myrf2 <- randomForest(y = rf_dat2$csci, # dependent variable
@@ -215,7 +222,7 @@ importance2 <- as.data.frame(as.table(myrf2$importance))
 View(importance2) # displays the data plotted in the plot above
 
 # Nicer ggplot variable importance plot.
-vip_plot_a <- importance2 %>%
+(vip_plot_a <- importance2 %>%
   filter(Var2 == "%IncMSE") %>%
   mutate(Var1 = factor(Var1)) %>%
   mutate(Var1_f = fct_reorder(Var1, Freq)) %>%
@@ -223,9 +230,9 @@ vip_plot_a <- importance2 %>%
   geom_point(size = 3, alpha = 0.75) +
   labs(x = "% Importance (MSE)",
     y = "Variables") +
-  theme_bw()
+  theme_bw())
 
-vip_plot_b <- importance2 %>%
+(vip_plot_b <- importance2 %>%
   filter(Var2 == "IncNodePurity") %>%
   mutate(Var1 = factor(Var1)) %>%
   mutate(Var1_f = fct_reorder(Var1, Freq)) %>%
@@ -233,7 +240,7 @@ vip_plot_b <- importance2 %>%
   geom_point(size = 3, alpha = 0.75) +
   labs(x = "Node Purity",
     y = "Variables") +
-  theme_bw()
+  theme_bw())
 
 vip_plot <- vip_plot_a + vip_plot_b
 
@@ -587,8 +594,7 @@ dc <- rfcv(rf_dat %>%
 
 dc$error.cv
 #         34         24         17         12          8          6          4          3          2          1 
-#0.03128173 0.03157298 0.03201571 0.03279091 0.03424057 0.03586710 0.03800190 0.03973939 0.04343232 0.05552953 
-# Appears between 34 and 17 variables, there is an insignificant increase in error.
+#0.03177735 0.03207433 0.03246517 0.03300634 0.03478964 0.03488280 0.03776805 0.03988306 0.04571341 0.05730258 
 
 # Step Seven - Map results state-wide -------------------------------------
 
